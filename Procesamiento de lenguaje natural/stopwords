@@ -1,0 +1,22 @@
+import pathlib
+import spacy
+import pandas as pd
+from spacy import displacy
+import csv
+import es_core_news_md
+nlp = es_core_news_md.load()
+filename = "./comentariosOdio.csv"
+lines_number = 1000
+data = pd.read_csv(filename, low_memory=False, delimiter=';',nrows=lines_number,
+#nrows=lines_number,
+quoting=csv.QUOTE_NONE,
+on_bad_lines='skip',
+encoding_errors='ignore',
+usecols=['CONTENIDO A ANALIZAR', 'INTENSIDAD'],
+#dtype=str
+)
+nlp = spacy.load("es_core_news_md")
+filtered_words = [token.text for token in data if not token.is_stop]
+clean_text = ''.join(filtered_words)
+print("Original Text:", text)
+print("Text after Stopword Removal:", clean_text)

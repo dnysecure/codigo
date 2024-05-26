@@ -1,0 +1,33 @@
+import pathlib
+import spacy
+import pandas as pd
+from spacy import displacy
+import csv
+import es_core_news_md
+nlp = es_core_news_md.load()
+filename = "./comentariosOdio.csv"
+lines_number = 70
+data = pd.read_csv(filename, low_memory=False, delimiter=';',nrows=lines_number,
+#nrows=lines_number,
+quoting=csv.QUOTE_NONE,
+on_bad_lines='skip',
+encoding_errors='ignore',
+usecols=['CONTENIDO A ANALIZAR', 'INTENSIDAD'],
+dtype=str
+)
+
+def analizar_genero_numero(data):
+    dic_num_gen = {'Masc': {'Sing': 0, 'Plur': 0}, 
+                   'Fem': {'Sing': 0, 'Plur': 0},
+                   'Neut': {'Sing': 0, 'Plur': 0}}
+
+    for token in data:
+        if token.pos_ in ("NOUN", "PROPN", "PRON"):  # Incluimos "PRON"
+            genero = token.morph.get("Gender")
+            numero = token.morph.get("Number")
+            if genero and numero:
+                dic_num_gen[genero[0]][numero[0]] += 1
+
+    return dic_num_gen
+print(Gender)
+print(Number)

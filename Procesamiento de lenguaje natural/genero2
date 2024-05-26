@@ -1,0 +1,27 @@
+conteo = analisis_linguistico("Hey alumnos, este es un comentario de prueba para toda la universidad 'UNIR', y si asi no fuera?... qué!!?, a JuanK le gusta trabajar este tema desde su apartamento en el edificio")
+
+
+def analisis_linguistico(frase):
+    resultados = {'Masc': {'Sing': 0, 'Plur': 0}, 
+              'Fem': {'Sing': 0, 'Plur': 0},
+              'Neut': {'Sing': 0, 'Plur': 0}}
+
+    analisis = nlp(frase)
+
+    for item in analisis:
+        if item.pos_ in ['NOUN', 'PROPN']:
+            genero = item.morph.get('Gender')
+            numero = item.morph.get('Number')
+
+            if genero and numero:
+                resultados[genero[0]][numero[0]] += 1
+
+    return resultados
+
+print(conteo)
+
+#Output
+
+#{'Masc': {'Sing': 4, 'Plur': 1},
+# 'Fem': {'Sing': 2, 'Plur': 0},
+# 'Neut': {'Sing': 0, 'Plur': 0}}

@@ -1,0 +1,26 @@
+import pathlib
+import spacy
+import pandas as pd
+from spacy import displacy
+import csv
+#import es_core_news_md
+npl = spacy.blank("es")
+#nlp = es_core_news_md.load()
+filename = "./comentariosOdio.csv"
+lines_number = 700000
+data = pd.read_csv(filename, low_memory=False, delimiter=';',nrows=lines_number,
+#nrows=lines_number,
+quoting=csv.QUOTE_NONE,
+on_bad_lines='skip',
+encoding_errors='ignore',
+#usecols=['CONTENIDO A ANALIZAR', 'INTENSIDAD'],
+usecols=['CONTENIDO A ANALIZAR'],
+dtype=str,
+)
+doc = npl(data)
+
+for token in doc:
+    if token.like_num:
+        next_token = doc[token.i + 1]
+        if next_token.text == "%":
+            print("Porcentaje:", token.tex)

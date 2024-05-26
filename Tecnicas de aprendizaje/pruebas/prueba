@@ -1,0 +1,4 @@
+IVA = 0.19
+precio = 2000
+precio_final = precio + (precio * IVA)
+print ('este es el precio final', precio_final)

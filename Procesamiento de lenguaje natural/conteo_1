@@ -1,0 +1,41 @@
+import pathlib
+import spacy
+import pandas as pd
+from spacy import displacy
+import csv
+import es_core_news_md
+nlp = es_core_news_md.load()
+filename = "./comentariosOdio.csv"
+lines_number = 700
+data = pd.read_csv(filename, low_memory=False, delimiter=';',nrows=lines_number,
+#nrows=lines_number,
+quoting=csv.QUOTE_NONE,
+on_bad_lines='skip',
+encoding_errors='ignore',
+usecols=['CONTENIDO A ANALIZAR', 'INTENSIDAD'],
+#dtype=str
+)
+
+#print(data)
+#print(data.shape)
+#print(data.tail)
+#print(data.columns)
+
+contenido_data = data['CONTENIDO A ANALIZAR']
+#print(contenido_data.count)
+
+cadena = "".join(contenido_data.astype(str).to_list())
+#print(cadena)
+print(len(cadena))
+
+doc = nlp("Give it back! He pleaded.")
+assert len(doc)
+cuanto = len(doc)
+print(cuanto)
+
+#def contador_palabras(texto)
+ #   texto_limpio = texto.replace(",","")
+#palabras = texto_limpio.split()
+#cantidad_de_palabras = len(palabras)
+#return cantidad_de_palabras
+
