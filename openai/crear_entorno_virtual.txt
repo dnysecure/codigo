@@ -1,0 +1,4 @@
+python -m venv nombre entorno - openai para pruebas de deepseek
+nombreentorno/Scripts/activate #para activar entorno virtual
+deactivate # salir de entorno
+pip install librerias_a_instalar #
