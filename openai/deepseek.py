@@ -2,7 +2,7 @@
 #Se reemplaza por openrouter que es gratuito
 from openai import OpenAI
 
-client = OpenAI(api_key="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", base_url="https://openrouter.ai/api/v1")
+client = OpenAI(api_key= ${{ secrets.openrouter_key }}, base_url="https://openrouter.ai/api/v1")
 
 print ("Bienvenido a DeepSeek cli")
 print("Por favor ingrese su busqueda")
