@@ -19,3 +19,4 @@ chat = client.chat.completions.create(
 )
 
 print(chat.choices[0].message.content)
+print(palabra)
