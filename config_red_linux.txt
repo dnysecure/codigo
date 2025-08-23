@@ -1,7 +1,7 @@
 ###instalar linux
 usar llaves de Git - dnysecure 
 - las llaves ya estan en .ssh de windows fueron creadas con powershell - ssh-keygen 
-    ssh-keygen -t ed25519 -C "dnydatos@gmail.com" ---- clave: Hymalaya2010 de llave
+    ssh-keygen -t ed25519 -C "dnydatos@gmail.com" ---- clave: ${{ secrets.CLAVELLAVEGIT }} de llave
 conectarse por powershell: ssh prueba@192.168.1.210 --- clave:Prueba123
 
 la puedes agregar en github si creas una nueva: cat ~/.ssh/id_ed25519.pub
