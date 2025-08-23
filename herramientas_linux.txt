@@ -1,7 +1,7 @@
 ###instalar linux
 usar llaves de Git - dnysecure 
 - las llaves ya estan en .ssh de windows fueron creadas con powershell - ssh-keygen 
-    ssh-keygen -t ed25519 -C "dnydatos@gmail.com"
+    ssh-keygen -t ed25519 -C "dnydatos@gmail.com" ---- clave: Hymalaya2010 de llave
 conectarse por powershell: ssh prueba@192.168.1.210 --- clave:Prueba123
 
 --configurar red en ubuntu 
@@ -11,20 +11,35 @@ conectarse por powershell: ssh prueba@192.168.1.210 --- clave:Prueba123
 
  Ejemplo completo con la IP y DNS solicitados (ajusta el nombre de interfaz en ethernets:):
 
-network:
-version: 2
-renderer: networkd
-ethernets:
-enp0s3:
-dhcp4: false
-dhcp6: false
-addresses:
-- 192.168.1.210/24
-routes:
-- to: default
-via: 192.168.1.1
-nameservers:
-addresses:
-- 200.21.200.80
-- 200.21.200.10
 
+network:
+  version: 2
+  ethernets:
+    ens33:
+      dhcp4: false
+      dhcp6: false
+      addresses:
+        - 192.168.1.210/24
+      routes:
+        - to: default
+          via: 192.168.1.1
+      nameservers:
+        addresses:
+          - 200.21.200.80
+          - 200.21.200.10
+
+guardamos cambios
+
+aplicamos cambios en netplan
+sudo netplan apply - aplicamos cambios
+ip add - revisamos que se tengan los cambios
+
+opcional:
+reiniciamos red -  sudo systemctl restart NetworkManager --
+si no sale debes hacer lo siguiente:
+
+systemctl is-active systemd-networkd - verifica servicios activos
+systemctl is-active NetworkManager
+
+si esta activo systemd-networkd 
+sudo systemctl restart systemd-networkd
