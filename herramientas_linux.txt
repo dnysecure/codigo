@@ -6,5 +6,25 @@ conectarse por powershell: ssh prueba@192.168.1.210 --- clave:Prueba123
 
 --configurar red en ubuntu 
  
- ls 
+ ls /etc/netplan - para ubicar el archivo de configuración de red (ej. 50-cloud-init.yaml, 01-netcfg.yaml)
+ sudo nano /etc/netplan/50-cloud-init.yaml.
+
+ Ejemplo completo con la IP y DNS solicitados (ajusta el nombre de interfaz en ethernets:):
+
+network:
+version: 2
+renderer: networkd
+ethernets:
+enp0s3:
+dhcp4: false
+dhcp6: false
+addresses:
+- 192.168.1.210/24
+routes:
+- to: default
+via: 192.168.1.1
+nameservers:
+addresses:
+- 200.21.200.80
+- 200.21.200.10
 
