@@ -1,1 +1,9 @@
+###instalar linux
+usar llaves de Git - dnysecure 
+- las llaves ya estan en .ssh de windows fueron creadas con powershell - ssh-keygen 
+    ssh-keygen -t ed25519 -C "dnydatos@gmail.com"
+conectarse por powershell: ssh prueba@192.168.1.210 --- clave:Prueba123
+
+--configurar red en ubuntu 
+
 
