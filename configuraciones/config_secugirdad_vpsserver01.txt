@@ -1,0 +1,6 @@
+##crear usuario normal no root con privilegios sudo
+adduser madrid
+usermod -aG sudo madrid
+## importar llave publica ssh desde github a ubuntu
+ssh-import-id-gh dnysecure
+
