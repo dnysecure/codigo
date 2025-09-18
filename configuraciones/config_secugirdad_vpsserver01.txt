@@ -4,3 +4,38 @@ usermod -aG sudo madrid
 ## importar llave publica ssh desde github a ubuntu
 ssh-import-id-gh dnysecure
 
+Para convertir una llave privada de formato PEM a formato PPK con PuTTYgen, sigue estos pasos:
+
+Abre PuTTYgen.
+En PuTTYgen, haz clic en el botón "Load" (Cargar).
+Cambia el filtro de archivos a "All Files (.)" para poder ver tu archivo PEM.
+Busca y selecciona tu archivo de llave privada en formato PEM.
+Una vez cargada la llave, PuTTYgen mostrará información sobre ella.
+Opcionalmente, puedes establecer una contraseña para proteger la llave PPK.
+Haz clic en "Save private key" (Guardar llave privada).
+Elige una ubicación y guarda la llave en formato PPK.
+
+Configurar primero llaves privadas en putty y luego importar sesion a mremote 
+
+## configuraciones de seguridad en ssh /etc/ssh/sshd_config
+Port 2322
+PermitRootLogin no
+PubkeyAuthentication yes
+PasswordAuthentication no ## no permite luego autenticacion por contraseña sin llaves
+
+## monitoreo de red ssh en ubuntu
+sudo grep "Failed password" /var/log/auth.log
+sudo tail -f /var/log/auth.log
+sudo grep "Accepted password" /var/log/auth.log #exitosas con contraseñas
+sudo grep "Accepted publickey" /var/log/auth.log # exitosas con llaves
+sudo grep "Failed password" /var/log/auth.log | grep "2025-09-18" ## filtrar por fechas y horas
+
+
+#Configurar reloj
+timedatectl ## verifica zona
+timedatectl list-timezones | grep America ## lista zonas horarias disponibles para America
+sudo timedatectl set-timezone America/Bogota # configura zona horaria Bogotá
+timedatectl ##confirma cambios
+
+
+
