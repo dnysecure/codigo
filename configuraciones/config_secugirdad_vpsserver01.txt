@@ -29,13 +29,50 @@ sudo tail -f /var/log/auth.log
 sudo grep "Accepted password" /var/log/auth.log #exitosas con contraseñas
 sudo grep "Accepted publickey" /var/log/auth.log # exitosas con llaves
 sudo grep "Failed password" /var/log/auth.log | grep "2025-09-18" ## filtrar por fechas y horas
-
+sudo journalctl -u ssh --since "2025-09-10 14:00:00" --until "2025-09-10 15:00:00" | grep "Failed password" ##filtro de horas especificas
 
 #Configurar reloj
 timedatectl ## verifica zona
 timedatectl list-timezones | grep America ## lista zonas horarias disponibles para America
 sudo timedatectl set-timezone America/Bogota # configura zona horaria Bogotá
 timedatectl ##confirma cambios
+
+#Configurar firewall ufw ubuntu
+sudo ufw enable
+sudo ufw allow 2322/tcp #permitir puerto 2322
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw default deny incoming #bloquear todo lo entrante excepto lo que ya esta configurado
+sudo ufw default allow outgoing # permitir todo lo saliente
+sudo ufw status verbose #revisar reglas
+sudo ufw limit 2322/tcp # limitar conexiones contra fuerza bruta bloqueando las IP despues de varios intentos
+sudo ufw deny from 203.0.113.4 #bloquear ip especificas
+sudo less /var/log/ufw.log #ver registros del firewall
+
+#Configurar fail2ban para bloquear IP que intenten loguearse con varios intentos
+sudo apt update
+sudo apt install fail2ban
+#No modifiques directamente /etc/fail2ban/jail.conf. Crea un archivo local para sobreescribir la configuración:
+sudo cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+sudo nano /etc/fail2ban/jail.local
+[sshd]
+enabled = true #activa proteccion ssh
+port = 22,2322
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 5 #numero de intentos fallidos antes de bloquear
+bantime = 600 #tiempo en segundos que dura el bloqueo
+
+sudo systemctl restart fail2ban
+
+#monitoreo de fail2ban
+sudo tail -f /var/log/fail2ban.log
+sudo fail2ban-client status sshd | grep <IP>
+sudo fail2ban-client get sshd banned # ver lista de Ips baneadas
+
+
+
+ 
 
 
 
