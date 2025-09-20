@@ -1,0 +1,14 @@
+sudo apt update
+sudo apt upgrade
+sudo apt install xfce4 xfce4-goodies -y
+sudo apt install xrdp -y
+sudo systemctl enable xrdp
+sudo systemctl start xrdp
+sudo systemctl status xrdp
+echo xfce4-session > ~/.xsession
+sudo usermod -a -G ssl-cert xrdp
+sudo setenforce 0
+sudo chown -R madrid:madrid /home/madrid/snap
+
+mv ~/.xsessionrc ~/.xsessionrc.bak #esta configuracion es de bash y el entorno ejecuta con sh
+

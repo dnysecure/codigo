@@ -1,0 +1,24 @@
+sudo apt update
+sudo apt upgrade
+wget -N -O code_1.104.1-1758154116_arm64.deb https://update.code.visualstudio.com/latest/linux-deb-arm64/stable
+sudo apt install ./code_1.104.1-1758154116_arm64.deb # instala visual estudio code
+
+sudo dpkg --configure -a
+sudo apt-get update
+sudo apt-get install build-essential cmake git
+sudo apt-get install python-pip
+sudo apt install python3-venv
+python -m venv .venv ## creamos nuestro entorno
+source ./.venv/bin/activate # activamos e ingresamos
+sudo apt update
+sudo apt install python3-pip -y
+pip install -U pip
+pip install ultralytics[export] ## modelos de yolo y visión artificial
+sudo reboot
+pip install https://github.com/ultralytics/assets/releases/download/v0.0.0/torch-2.5.0a0+872d972e41.nv24.08-cp310-cp310-linux_aarch64.whl
+pip install https://github.com/ultralytics/assets/releases/download/v0.0.0/torchvision-0.20.0a0+afc54f7-cp310-cp310-linux_aarch64.whl
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/arm64/cuda-keyring_1.1-1_all.deb
+sudo dpkg -i cuda-keyring_1.1-1_all.deb
+sudo apt-get update
+sudo apt-get -y install libcusparselt0 libcusparselt-dev # esto corrige error de torch 2.5.0
+pip install https://github.com/ultralytics/assets/releases/download/v0.0.0/onnxruntime_gpu-1.20.0-cp310-cp310-linux_aarch64.whl
