@@ -1,0 +1,245 @@
+sudo apt update
+sudo apt install -y openvpn easy-rsa
+##firewall
+sudo ufw allow 2394/udp comment 'OpenVPN'
+##Crear CA y certificados con easy-RSA
+sudo mkdir -p /etc/openvpn/easy-rsa
+sudo cp -r /usr/share/easy-rsa/* /etc/openvpn/easy-rsa/
+cd /etc/openvpn/easy-rsa
+##inicia pki y crea CA pide datos - servidor madrid clave: iamantis.2025
+sudo ./easyrsa init-pki
+sudo ./easyrsa build-ca
+##certificado del servidor - madrid
+sudo ./easyrsa gen-req server nopass
+sudo ./easyrsa sign-req server server
+##general clave de control tls que usa tls-crypt es mas seguro que tls-auth (tls-crypt cifra y autentica el canal de control, mitigando escaneo/DoS)
+sudo install -d -m 0755 /etc/openvpn/server
+sudo openvpn --genkey secret /etc/openvpn/server/tc.key
+##copia los materiales al directorio del servidor
+cd /etc/openvpn/easy-rsa
+sudo cp pki/ca.crt pki/issued/server.crt pki/private/server.key /etc/openvpn/server/
+##Configurar el servidor - Crea /etc/openvpn/server/server.conf con algo así (ajusta si usas DH o no): Diffie-Hellman
+sudo ./easyrsa gen-dh
+sudo cp pki/dh.pem /etc/openvpn/server/
+
+##crear fichero PAM
+sudo tee /etc/pam.d/openvpn >/dev/null <<'EOF'
+auth    required        pam_unix.so
+account required        pam_unix.so
+EOF
+
+## configuracion del servidor - cambia el puerto default 1194 por 2394
+sudo nano /etc/openvpn/server/server.conf
+
+###pegar:
+    #port 1194
+    port 2394
+    proto udp
+    dev tun
+    topology subnet
+    server 10.8.0.0 255.255.255.0
+
+    # Si solo quieres que los clientes vean servicios del propio servidor,
+    # NO empujes redirect-gateway. (Para salir a Internet vía VPN, ver sección opcional)
+    # push "redirect-gateway def1"
+
+    # Certificados
+    ca   /etc/openvpn/server/ca.crt
+    cert /etc/openvpn/server/server.crt
+    key  /etc/openvpn/server/server.key
+
+    # Seguridad TLS y cifrados modernos
+    tls-crypt /etc/openvpn/server/tc.key
+    # Si usas DH (TLS 1.2):
+    dh /etc/openvpn/server/dh.pem
+    # Si NO usas DH y quieres solo ECDH modernos:
+    # dh none   # (soportado por OpenVPN/OpenSSL modernos)
+    # data-ciphers negociados por defecto en 2.6, puedes fijar:
+    data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305
+    data-ciphers-fallback AES-256-GCM
+    auth SHA256
+
+    # Rutas/DNS opcional (si quieres resolver nombres internos)
+    # push "dhcp-option DNS 10.8.0.1"
+
+    # Mantener túnel
+    keepalive 10 120
+    persist-key
+    persist-tun
+
+    # Doble autenticación: certificado de cliente + usuario/contraseña (PAM)
+    plugin /usr/lib/x86_64-linux-gnu/openvpn/plugins/openvpn-plugin-auth-pam.so openvpn
+    verify-client-cert require
+    username-as-common-name
+
+    # Logs básicos
+    status /run/openvpn/server.status 10
+    verb 3
+
+
+## crea y habilita servicio
+sudo systemctl enable --now openvpn-server@server.service
+sudo systemctl status openvpn-server@server.service --no-pager
+
+##reiniciar
+sudo systemctl restart openvpn-server@server.service
+sudo systemctl status openvpn-server@server.service --no-pager
+
+## errores comunes, verificar que el archivo .conf este donde debe
+systemctl cat openvpn-server@server.service
+
+## para permitir solo que se vean los servicios internos del servidor y no exponer a internet
+    # Permitir desde la interfaz del túnel
+    sudo ufw allow in on tun0 to any port 8080 proto tcp comment 'Servicio interno para VPN'
+
+    # (Opcional) Asegurar que NO entre por la interfaz pública (sustituye eth0 si aplica)
+    # sudo ufw deny in on eth0 to any port 8080 proto tcp
+    #Así tus clientes verán http://10.8.0.1:8080 pero nada quedará público.
+    #Si tu servicio solo escucha en 127.0.0.1, haz que escuche en 0.0.0.0 o en 10.8.0.1, manteniendo UFW filtrando por tun0.
+
+#Que los clientes salgan a Internet o a otras redes detrás del servidor Si quieres enrutar más allá del propio servidor, activa IP forwarding y NAT:
+#Habilita reenvío IPv4:
+echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+
+##usuarios y perfiles de cliente
+##Crea usuarios (PAM)
+##Cada cliente usará certificado + usuario/contraseña. Los usuarios pueden ser cuentas locales de Linux:
+
+sudo useradd -m -s /usr/sbin/nologin iamantisuser1
+
+sudo passwd amantisuser1   # asigna contraseña - S4nt4nd3r34n05.2025$
+
+##El plugin PAM valida contra “login” del sistema (usuarios locales).
+
+##Genera certificado del cliente y su perfil
+cd /etc/openvpn/easy-rsa
+sudo ./easyrsa gen-req iamantisuser1 nopass
+sudo ./easyrsa sign-req client iamantisuser1
+
+##crea el fichero que sera compartido con el cliente -- cliente.ovpn
+
+    cat > ~/cliente1.ovpn <<'EOF'
+    client
+    dev tun
+    proto udp
+    remote 161.97.133.29 2394
+    resolv-retry infinite
+    nobind
+    persist-key
+    persist-tun
+    remote-cert-tls server
+    verb 3
+
+    # Cifrado/negociación (OpenVPN 2.5+)
+    data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305
+    data-ciphers-fallback AES-256-GCM
+    auth SHA256
+
+    # Pedirá usuario/contraseña (PAM en el servidor)
+    auth-user-pass
+    # (opcional) evita cachear la contraseña en memoria:
+    # auth-nocache
+
+    # (opcional) para UDP: notifica salida limpia
+    explicit-exit-notify 3
+
+    <ca>
+    # Pega aquí el contenido de /etc/openvpn/easy-rsa/pki/ca.crt (bloque PEM completo)
+    </ca>
+    <cert>
+    # Pega aquí el contenido de /etc/openvpn/easy-rsa/pki/issued/cliente1.crt (bloque PEM)
+    </cert>
+    <key>
+    # Pega aquí el contenido de /etc/openvpn/easy-rsa/pki/private/cliente1.key (bloque PEM)
+    </key>
+    <tls-crypt>
+    # Pega aquí el contenido de /etc/openvpn/server/tc.key (bloque de clave tls-crypt)
+    </tls-crypt>
+    EOF
+
+## deben estar creados los certificados del usuario en private
+## otra opcion automatizada de crear el fichero .ovpn
+
+    sudo bash -c 'cat > /root/iamantisuser1.ovpn <<EOF
+    client
+    dev tun
+    proto udp
+    remote 161.97.133.29 2394
+    resolv-retry infinite
+    nobind
+    persist-key
+    persist-tun
+    remote-cert-tls server
+    verb 3
+    data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305
+    data-ciphers-fallback AES-256-GCM
+    auth SHA256
+    auth-user-pass
+    explicit-exit-notify 3
+
+    <ca>
+    $(cat /etc/openvpn/easy-rsa/pki/ca.crt)
+    </ca>
+    <cert>
+    $(awk "/BEGIN CERTIFICATE/,/END CERTIFICATE/" /etc/openvpn/easy-rsa/pki/issued/iamantisuser1.crt)
+    </cert>
+    <key>
+    $(awk "/BEGIN.*PRIVATE KEY/,/END.*PRIVATE KEY/" /etc/openvpn/easy-rsa/pki/private/iamantisuser1.key)
+    </key>
+    <tls-crypt>
+    $(cat /etc/openvpn/server/tc.key)
+    </tls-crypt>
+    EOF
+    chmod 600 /root/iamantisuser1.ovpn'
+
+### otra opcion
+    CN="iamantisuser1"
+    SRV_IP="161.97.133.29"
+    SRV_PORT="2394"
+    OUT="/root/${CN}.ovpn"
+
+    # comprobaciones
+    for f in \
+    "/etc/openvpn/easy-rsa/pki/ca.crt" \
+    "/etc/openvpn/easy-rsa/pki/issued/${CN}.crt" \
+    "/etc/openvpn/easy-rsa/pki/private/${CN}.key" \
+    "/etc/openvpn/server/tc.key"
+    do
+    [ -f "$f" ] || { echo "FALTA: $f"; exit 1; }
+    done
+
+    # generar .ovpn
+    cat > "$OUT" <<EOF
+    client
+    dev tun
+    proto udp
+    remote ${SRV_IP} ${SRV_PORT}
+    resolv-retry infinite
+    nobind
+    persist-key
+    persist-tun
+    remote-cert-tls server
+    verb 3
+    data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305
+    data-ciphers-fallback AES-256-GCM
+    auth SHA256
+    auth-user-pass
+    explicit-exit-notify 3
+
+    <ca>
+    $(cat /etc/openvpn/easy-rsa/pki/ca.crt)
+    </ca>
+    <cert>
+    $(cat /etc/openvpn/easy-rsa/pki/issued/${CN}.crt)
+    </cert>
+    <key>
+    $(cat /etc/openvpn/easy-rsa/pki/private/${CN}.key)
+    </key>
+    <tls-crypt>
+    $(cat /etc/openvpn/server/tc.key)
+    </tls-crypt>
+    EOF
+
+    chmod 600 "$OUT"
+    echo "Perfil listo: $OUT"
