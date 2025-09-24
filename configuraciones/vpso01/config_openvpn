@@ -161,7 +161,7 @@ sudo ./easyrsa sign-req client iamantisuser1
 ## deben estar creados los certificados del usuario en private
 ## otra opcion automatizada de crear el fichero .ovpn
 
-    sudo bash -c 'cat > /root/iamantisuser1.ovpn <<EOF
+    sudo bash -c 'cat > /home/madrid/iamantisuser1.ovpn <<EOF
     client
     dev tun
     proto udp
@@ -191,7 +191,7 @@ sudo ./easyrsa sign-req client iamantisuser1
     $(cat /etc/openvpn/server/tc.key)
     </tls-crypt>
     EOF
-    chmod 600 /root/iamantisuser1.ovpn'
+    chmod 600 /home/madrid/iamantisuser1.ovpn'
 
 ### otra opcion
     CN="iamantisuser1"
@@ -243,3 +243,6 @@ sudo ./easyrsa sign-req client iamantisuser1
 
     chmod 600 "$OUT"
     echo "Perfil listo: $OUT"
+
+##Copiar archivos .ovpn al cliente en windows
+scp -i "C:\Users\dnyda\.ssh\id_ed25519" -P 2322 madrid@161.97.133.29:/home/madrid/iamantisuser1.ovpn "$env:USERPROFILE\Downloads\"
