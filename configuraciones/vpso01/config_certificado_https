@@ -1,0 +1,197 @@
+## crear registros A en panel de dominio
+iamantis.com → 161.97.133.29
+www.iamantis.com → 161.97.133.29
+iamantis.co → 161.97.133.29
+www.iamantis.co → 161.97.133.29
+
+## verificar propagación - debe responder con la IP
+dig +short iamantis.com A
+dig +short www.iamantis.com A
+dig +short iamantis.co A
+dig +short www.iamantis.co A
+
+## firewall ufw
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw reload
+
+## preparar estructura y ficheros /home/madrid/iamantis (tu ruta actual)
+sudo mkdir -p /home/madrid/iamantis/{web,nginx,certbot/www,certbot/conf}
+sudo chown -R $USER:$USER /home/madrid/iamantis
+
+## /home/madrid/iamantis/docker-compose.yml
+## pegar:
+# /home/madrid/iamantis/docker-compose.yml
+version: "3.9"
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: iamantis-web
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"     # <--- asegúrate de tener esta línea
+    volumes:
+      - /home/madrid/iamantis/web:/usr/share/nginx/html:ro
+      - /home/madrid/iamantis/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - /home/madrid/iamantis/certbot/conf:/etc/letsencrypt:ro
+      - /home/madrid/iamantis/certbot/www:/var/www/certbot:ro
+    restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: iamantis-certbot
+    volumes:
+      - /home/madrid/iamantis/certbot/conf:/etc/letsencrypt
+      - /home/madrid/iamantis/certbot/www:/var/www/certbot
+
+## aplicar cambios recreando el stack
+cd /home/madrid/iamantis
+sudo docker-compose down
+sudo docker-compose up -d
+sudo docker ps --format "table {{.Names}}\t{{.Ports}}"
+# Debes ver: 0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
+
+
+## Configuración inicial de nginx (solo HTTP para emitir certificados) - 
+## Antes de tener certificados, nginx no puede arrancar en 443 apuntando a rutas que aún no existen. Por eso primero iniciamos HTTP con un bloque que expone el /.well-known/##acme-challenge/.
+## Crea /home/madrid/iamantis/nginx/default.http.conf con:
+server {
+  listen 80;
+  server_name iamantis.com www.iamantis.com iamantis.co www.iamantis.co;
+
+  root /usr/share/nginx/html;
+  index index.html;
+
+  # Ruta para el desafío de Let's Encrypt (webroot)
+  location ^~ /.well-known/acme-challenge/ {
+    alias /var/www/certbot/.well-known/acme-challenge/;
+    default_type "text/plain";
+    try_files $uri =404;
+  }
+
+  # Tu sitio estático
+  location / {
+    try_files $uri $uri/ =404;
+  }
+}
+
+## Copia este archivo como configuración activa:
+cp /home/madrid/iamantis/nginx/default.http.conf /home/madrid/iamantis/nginx/default.conf
+
+## Levanta nginx (solo HTTP por ahora):
+cd /home/madrid/iamantis
+sudo docker-compose up -d nginx
+
+## Prueba en el navegador: http://iamantis.com y http://iamantis.co deben mostrar tu página.
+
+## Emitir certificados Let’s Encrypt (para ambos dominios) Ejecuta certbot con método webroot (usará el bloque anterior):
+cd /home/madrid/iamantis
+
+sudo docker-compose run --rm certbot certonly \
+  --webroot \
+  -w /var/www/certbot \
+  -d iamantis.com -d www.iamantis.com \
+  -d iamantis.co -d www.iamantis.co \
+  --email dnydatos@gmail.com \
+  --agree-tos \
+  --no-eff-email
+ ## se crean los certificados en /home/madrid/iamantis/certbot/conf/live/iamantis.com/
+ fullchain.pem
+ privkey.pem
+
+## Activar HTTPS + redirección 80→443 (config final de nginx)
+## Ahora sustituimos la conf de nginx por una que:
+## siga sirviendo el webroot del desafío (para renovaciones);
+## redirija todo HTTP a HTTPS;
+## sirva el sitio en TLS con seguridad razonable.
+
+## Crea /home/madrid/iamantis/nginx/default.conf con:
+# 1) HTTP: solo ACME y redirección a HTTPS
+server {
+  listen 80;
+  server_name iamantis.com www.iamantis.com iamantis.co www.iamantis.co;
+
+  # webroot para ACME (debe seguir funcionando para renovar)
+  location ^~ /.well-known/acme-challenge/ {
+    alias /var/www/certbot/.well-known/acme-challenge/;
+    default_type "text/plain";
+    try_files $uri =404;
+  }
+
+  # Redirección global a HTTPS
+  location / {
+    return 301 https://$host$request_uri;
+  }
+}
+
+# 2) HTTPS: sitio principal
+server {
+  listen 443 ssl; 
+  http2 on;
+  server_name iamantis.com www.iamantis.com iamantis.co www.iamantis.co;
+
+  root /usr/share/nginx/html;
+  index index.html;
+
+  # Rutas de los certificados emitidos por Let's Encrypt
+  ssl_certificate     /etc/letsencrypt/live/iamantis.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/iamantis.com/privkey.pem;
+
+  # TLS y cifrados razonables (compatibles y seguros)
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_prefer_server_ciphers on;
+
+  # Seguridad extra (encabezados)
+  # Usa HSTS cuando estés seguro de mantener HTTPS siempre:
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always; # habilita HSTS 1 año
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-Frame-Options "SAMEORIGIN" always;
+  add_header Referrer-Policy "no-referrer-when-downgrade" always;
+  # Política CSP mínima (ajústala si añades recursos externos)
+  add_header Content-Security-Policy "default-src 'self';" always;
+
+  # Tu sitio estático
+  location / {
+    try_files $uri $uri/ =404;
+  }
+
+  # Mantener el webroot accesible (renovaciones)
+  location ^~ /.well-known/acme-challenge/ {
+    alias /var/www/certbot/.well-known/acme-challenge/;
+    default_type "text/plain";
+    try_files $uri =404;
+  }
+}
+
+## Recarga nginx con la nueva conf:
+sudo docker-compose exec iamantis-web nginx -t   # prueba de sintaxis
+sudo docker-compose exec iamantis-web nginx -s reload
+# (o docker-compose up -d para recrear si lo prefieres)
+
+### REVISIONES SI PRESENTA ERRORES
+## Asegura que el contenedor publica 443:443
+docker ps --format "table {{.Names}}\t{{.Ports}}"
+## salida = 0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp - Si 443 no aparece, tu docker-compose.yml no está aplicando el mapeo. Corrige y recrea: /home/madrid/iamantis/##docker-compose.yml
+ports:
+  - "80:80"
+  - "443:443"
+
+cd /home/madrid/iamantis
+sudo docker-compose down
+sudo docker-compose up -d
+sudo docker ps --format "table {{.Names}}\t{{.Ports}}"
+
+## Verifica dentro del contenedor que Nginx escucha en 443
+# ¿Nginx escucha 443 dentro del contenedor?
+sudo docker exec -it iamantis-web sh -c "ss -ltnp | grep :443 || true"
+
+# Muestra las 'listen' reales que Nginx cargó
+sudo docker exec -it iamantis-web sh -c "nginx -T 2>/dev/null | grep -E 'listen|server_name'"
+
+# Valida sintaxis
+sudo docker exec -it iamantis-web nginx -t
+
+
+
+
