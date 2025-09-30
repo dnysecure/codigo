@@ -1,10 +1,10 @@
-##crear usuario normal no root con privilegios sudo
+## crear usuario normal no root con privilegios sudo
 adduser madrid
 usermod -aG sudo madrid
 ## importar llave publica ssh desde github a ubuntu
 ssh-import-id-gh dnysecure
 
-##crear y configurar llaves de respaldo en caso de que se pierdan las principales
+## crear y configurar llaves de respaldo en caso de que se pierdan las principales
 electrony_restorekey
 ssh-keygen -t ed25519 -C "electrony@gmail.com" - Hymalaya2010
 

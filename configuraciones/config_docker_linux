@@ -21,3 +21,29 @@ sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin 
 
 # verificar instalacion
 sudo docker run hello-world
+
+## comandos utiles
+# Este comando te dice qué archivo está usando y valida la configuración
+docker-compose config
+# Si quieres ver solo la ruta del archivo que está leyendo:
+docker-compose config --services
+# Listar todos los proyectos compose en ejecución
+docker-compose ls
+# Ver más detalles de los proyectos
+docker-compose ps
+# Los logs pueden mostrar qué archivo se está usando
+docker-compose up --dry-run
+docker-compose logs
+# Ver en qué contexto de Docker estás trabajando
+docker context ls
+docker context show
+# El contexto determina qué daemon de Docker y recursos estás usando
+# 1. Ver contenedores activos
+docker ps
+# 2. Ver de qué proyecto compose provienen
+docker inspect <container_id> | grep "com.docker.compose.project"
+# 3. Ver la ruta del archivo compose usado
+docker inspect <container_id> | grep "com.docker.compose.project.working_dir"
+# 4. Verificar la configuración
+cd /ruta/que/aparezca/en/working_dir
+docker-compose config
