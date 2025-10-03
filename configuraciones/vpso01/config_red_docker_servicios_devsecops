@@ -266,5 +266,56 @@ services:
 cd /home/madrid/iamantis
 ## docker login    # opcional, ayuda con rate limits
 docker compose pull --no-parallel
+## sube y valida
+docker compose up -d
+docker compose ps
+
+## Mientras tanto, con lo de arriba puedes levantar ya todo y entrar por VPN a:
+DefectDojo → http://10.9.0.12:8080
+Dependency-Track → http://10.9.0.20:8080
+SonarQube → http://10.9.0.30:9000
+ZAP API → http://10.9.0.40:8080
+Trivy server → http://10.9.0.60:4954
+
+## verificar conexion desde ubuntu
+sudo docker ps -q | xargs -r -n1 sudo docker inspect -f '{{.Name}} -> {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
+
+## verificar red docker y bridge linux
+# Inspecciona la red
+sudo docker network inspect iamantis_net | grep -E 'Subnet|Gateway|com.docker.network.bridge.name' -A1 -n
+ 
+ ## si tiene fallas con el bridge - leer bridge desde el docker para identificar, requiere root - sudo su
+ # 1) Intenta leer el nombre del bridge directamente desde Docker
+BR=$(docker network inspect iamantis_net -f '{{index .Options "com.docker.network.bridge.name"}}')
+# 2) Si Docker no lo expone (valor vacío), constrúyelo con el ID de la red (br-<primeros 12 chars>)
+if [ -z "$BR" ]; then
+  NETID=$(docker network inspect iamantis_net -f '{{.Id}}' | cut -c1-12)
+  BR="br-$NETID"
+fi
+echo "Bridge detectado: $BR"
+# 3) Muestra datos útiles para confirmar
+docker network inspect iamantis_net -f 'subnet={{(index .IPAM.Config 0).Subnet}} gw={{(index .IPAM.Config 0).Gateway}}'
+ip addr show "$BR" | sed -n '1,10p'
+# 4) (Opcional) Lista los contenedores conectados a esa red y sus IPs
+docker network inspect iamantis_net -f '{{range .Containers}}{{println .Name "->" .IPv4Address}}{{end}}'
 
 
+### luego de identificar el bridge br-xxxxxxxx se realiza la configuracion
+## Prep del host (IP forwarding)
+echo "net.ipv4.ip_forward=1" | sudo tee /etc/sysctl.d/99-forward.conf
+sudo sysctl --system
+## comprueba
+sysctl net.ipv4.ip_forward   # debe devolver =1
+## reinicia openvpn y reconecta clientes
+sudo systemctl restart openvpn-server@server || sudo systemctl restart openvpn
+## En el cliente VPN valida que aparece la ruta:
+## Windows: route print | findstr 10.9.0.0
+## Linux/macOS: ip route | grep 10.9.0.0/24
+
+## iptables: permitir FORWARD entre tun0 y br-7adb8aab6639
+## (a) Cadena FORWARD (núcleo del ruteo)
+## esto permite el tráfico ida/vuelta entre la VPN y el bridge de Docker.
+BR="br-7adb8aab6639"
+# Permitir paso tun0 -> bridge y bridge -> tun0
+sudo iptables -C FORWARD -i tun0 -o $BR -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD -i tun0 -o $BR -j ACCEPT
+sudo iptables -C FORWARD -i $BR -o tun0 -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD -i $BR -o tun0 -j ACCEPT

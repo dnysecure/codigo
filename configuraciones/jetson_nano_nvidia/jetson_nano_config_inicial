@@ -2,6 +2,63 @@ sudo apt update
 sudo apt upgrade
 wget -N -O code_1.104.1-1758154116_arm64.deb https://update.code.visualstudio.com/latest/linux-deb-arm64/stable
 sudo apt install ./code_1.104.1-1758154116_arm64.deb # instala visual estudio code
+## instalar nvidia-container - si lo instalo en la ssd no es necesario esto pero en este caso esta en el nvem
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+  && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+    sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+##
+sudo sed -i -e '/experimental/ s/^#//g' /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+sudo apt-get update
+export NVIDIA_CONTAINER_TOOLKIT_VERSION=1.17.8-1
+  sudo apt-get install -y \
+      nvidia-container-toolkit=${NVIDIA_CONTAINER_TOOLKIT_VERSION} \
+      nvidia-container-toolkit-base=${NVIDIA_CONTAINER_TOOLKIT_VERSION} \
+      libnvidia-container-tools=${NVIDIA_CONTAINER_TOOLKIT_VERSION} \
+      libnvidia-container1=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+## Probar instalación
+nvidia-ctk --version
+## para deshabilitar el entorno grafico temporalmente para liberar memoria y recursos
+$ sudo init 3     # stop the desktop
+# log your user back into the console (Ctrl+Alt+F1, F2, ect)
+$ sudo init 5     # restart the desktop
+## Para hacerlo persistente
+sudo systemctl set-default multi-user.target
+## para volver al entorno grafico
+sudo systemctl set-default graphical.target
+## para desactivar servicios varios
+sudo systemctl disable nvargus-daemon.service
+
+## instalar memoria swap adicional 16G para trabajar con modelos grandes en nvme - para ssd cambiar a /ssd/16GB.swap
+sudo systemctl disable nvzramconfig
+sudo fallocate -l 16G /16GB.swap
+sudo chmod 600 /16GB.swap
+sudo mkswap /16GB.swap
+sudo swapon /16GB.swap
+## hacerlo persistente en /etc/fstab
+echo '/16GB.swap none swap sw 0 0' | sudo tee -a /etc/fstab
+## verificar swap
+swapon --show
+free -h
+
+## Instalando docker
+curl https://get.docker.com | sh && sudo systemctl --now enable docker
+sudo nvidia-ctk runtime configure --runtime=docker
+## reiniciando servicio y adicionando usuario al grupo docker
+sudo systemctl restart docker
+sudo usermod -aG docker $USER
+newgrp docker
+## adicionar default runtime en /etc/docker/daemon.json
+sudo apt install -y jq
+sudo jq '. + {"default-runtime": "nvidia"}' /etc/docker/daemon.json | \
+  sudo tee /etc/docker/daemon.json.tmp && \
+  sudo mv /etc/docker/daemon.json.tmp /etc/docker/daemon.json
+## reiniciar docker
+sudo systemctl daemon-reload && sudo systemctl restart docker
+
+sudo apt update
+## sudo apt install -y nvidia-container - opcional
 
 sudo dpkg --configure -a
 sudo apt-get update
@@ -22,3 +79,14 @@ sudo dpkg -i cuda-keyring_1.1-1_all.deb
 sudo apt-get update
 sudo apt-get -y install libcusparselt0 libcusparselt-dev # esto corrige error de torch 2.5.0
 pip install https://github.com/ultralytics/assets/releases/download/v0.0.0/onnxruntime_gpu-1.20.0-cp310-cp310-linux_aarch64.whl
+
+## comprobar modo energia
+nvpmodel -q
+
+## monitoreo de recursos
+sudo apt install -y pip3-python
+sudo pip3 install -U jetson-stats
+jtop ## ejecuta el servicio de monitoreo
+
+## Versiones de Jetpack R36 es 6.2xx y aplicaciones
+jetson_release
