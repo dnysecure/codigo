@@ -269,6 +269,8 @@ docker compose pull --no-parallel
 ## sube y valida
 docker compose up -d
 docker compose ps
+ ## para borrar contenedor
+sudo docker rm -f nombrecontenedor
 
 ## Mientras tanto, con lo de arriba puedes levantar ya todo y entrar por VPN a:
 DefectDojo → http://10.9.0.12:8080
