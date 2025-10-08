@@ -9,9 +9,15 @@ CREATE DATABASE dependencytrack OWNER iamantis;
 GRANT ALL PRIVILEGES ON DATABASE dependencytrack TO iamantis;
 ## verificamos creación con: (debe estar creada la nueva BD)
 \l
+## verifica roles
+\du
 ## salimos de la BD
 \q
 ## reiniciamos servicio con problemas en este cado DT
 sudo docker restart dependencytrack
+## validar conexion a la BD
+sudo docker exec -it postgres_ddj psql -U iamantis -d dependencytrack -c '\conninfo'
+## verificando status
+sudo docker ps --filter name=postgres_ddj
 ## monitoreo al contenedor - revisamos errores
 sudo docker logs -f dependencytrack | grep -E "Ready|Started|error"
