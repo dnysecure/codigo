@@ -1,0 +1,17 @@
+## Conéctate a la base correcta (dojo) o usa el usuario postgres que siempre existe.
+## Opción 1 — conectarte con iamantis al DB dojo:
+sudo docker exec -it postgres_ddj psql -U iamantis -d dojo
+## Una vez dentro del prompt psql, ejecuta:
+\l
+## se muestran las BD
+## si el error es que falta una BD como dependencytrack, la creamos
+CREATE DATABASE dependencytrack OWNER iamantis;
+GRANT ALL PRIVILEGES ON DATABASE dependencytrack TO iamantis;
+## verificamos creación con: (debe estar creada la nueva BD)
+\l
+## salimos de la BD
+\q
+## reiniciamos servicio con problemas en este cado DT
+sudo docker restart dependencytrack
+## monitoreo al contenedor - revisamos errores
+sudo docker logs -f dependencytrack | grep -E "Ready|Started|error"
