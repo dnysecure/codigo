@@ -44,25 +44,23 @@ sudo chown madrid:madrid /home/madrid/iamantis/web/index.html
 networks:
   iamantis_net:
     external: true
+    name: iamantis_net
 
 services:
-
-  # ===================== DefectDojo =====================
-  mysql_ddj:
-    image: mysql:8.0
-    container_name: mysql_ddj
+  # ===================== DefectDojo: DB + Redis =====================
+  postgres_ddj:
+    image: postgres:15-alpine
+    container_name: postgres_ddj
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: change_this_root_pwd
-      MYSQL_DATABASE: dojo
-      MYSQL_USER: dojo
-      MYSQL_PASSWORD: change_this_pwd
+      POSTGRES_DB: dojo
+      POSTGRES_USER: iamantis
+      POSTGRES_PASSWORD: 14m4nt15
     volumes:
-      - /home/madrid/iamantis/defectdojo/mysql:/var/lib/mysql
+      - /home/madrid/iamantis/defectdojo/postgres:/var/lib/postgresql/data
     networks:
       iamantis_net:
         ipv4_address: 10.9.0.10
-    mem_limit: 1g
 
   redis_ddj:
     image: redis:7-alpine
@@ -73,193 +71,194 @@ services:
     networks:
       iamantis_net:
         ipv4_address: 10.9.0.11
-    mem_limit: 512m
 
+  # ===================== DefectDojo (Django/uWSGI + Celery + Nginx UI) =====================
   defectdojo:
     image: defectdojo/defectdojo-django:latest
     container_name: defectdojo
     restart: always
     depends_on:
-      - mysql_ddj
+      - postgres_ddj
       - redis_ddj
+    entrypoint: ["/entrypoint-uwsgi.sh"]
     environment:
-      DD_DATABASE_HOST: mysql_ddj
-      DD_DATABASE_PORT: "3306"
+      DD_SECRET_KEY: 14m4nt15
+      DD_DATABASE_HOST: postgres_ddj
+      DD_DATABASE_PORT: "5432"
       DD_DATABASE_NAME: dojo
-      DD_DATABASE_USER: dojo
-      DD_DATABASE_PASSWORD: change_this_pwd
-      DD_DEBUG: "False"
+      DD_DATABASE_USER: iamantis
+      DD_DATABASE_PASSWORD: 14m4nt15
+      DD_CELERY_BROKER_URL: redis://redis_ddj:6379/0
+      DD_CELERY_RESULT_BACKEND: redis://redis_ddj:6379/1
     volumes:
+      - /home/madrid/iamantis/defectdojo/extra_settings/local_settings.py:/app/docker/extra_settings/local_settings.py:ro
       - /home/madrid/iamantis/defectdojo/media:/app/media
+      - /home/madrid/iamantis/defectdojo/reports:/app/reports
     networks:
       iamantis_net:
         ipv4_address: 10.9.0.12
-    mem_limit: 3g
-    # Acceso por VPN: http://10.9.0.12:8080
 
-  # ===================== Dependency-Track =====================
+  ddj_celeryworker:
+    image: defectdojo/defectdojo-django:latest
+    container_name: ddj_celeryworker
+    restart: always
+    depends_on:
+      - defectdojo
+    entrypoint: ["/entrypoint-celery-worker.sh"]
+    environment:
+      DD_CELERY_BROKER_URL: redis://redis_ddj:6379/0
+      DD_CELERY_RESULT_BACKEND: redis://redis_ddj:6379/1
+      DD_DATABASE_HOST: postgres_ddj
+      DD_DATABASE_PORT: "5432"
+      DD_DATABASE_NAME: dojo
+      DD_DATABASE_USER: iamantis
+      DD_DATABASE_PASSWORD: 14m4nt15
+    volumes:
+      - /home/madrid/iamantis/defectdojo/extra_settings/local_settings.py:/app/docker/extra_settings/local_settings.py:ro
+    networks:
+      iamantis_net:
+        ipv4_address: 10.9.0.15
+
+  ddj_celerybeat:
+    image: defectdojo/defectdojo-django:latest
+    container_name: ddj_celerybeat
+    restart: always
+    depends_on:
+      - defectdojo
+    entrypoint: ["/entrypoint-celery-beat.sh"]
+    environment:
+      DD_CELERY_BROKER_URL: redis://redis_ddj:6379/0
+      DD_CELERY_RESULT_BACKEND: redis://redis_ddj:6379/1
+      DD_DATABASE_HOST: postgres_ddj
+      DD_DATABASE_PORT: "5432"
+      DD_DATABASE_NAME: dojo
+      DD_DATABASE_USER: iamantis
+      DD_DATABASE_PASSWORD: 14m4nt15
+    volumes:
+      - /home/madrid/iamantis/defectdojo/extra_settings/local_settings.py:/app/docker/extra_settings/local_settings.py:ro
+    networks:
+      iamantis_net:
+        ipv4_address: 10.9.0.16
+
+  defectdojo_nginx:
+    image: defectdojo/defectdojo-nginx:latest
+    container_name: defectdojo_nginx
+    restart: always
+    depends_on:
+      - defectdojo
+    environment:
+      DD_UWSGI_HOST: defectdojo
+      DD_UWSGI_PORT: "3031"
+    networks:
+      iamantis_net:
+        ipv4_address: 10.9.0.14
+    # UI Dojo → publicado SOLO en la IP de la VPN
+    ports:
+      - "10.8.0.1:18080:8080"
+
+  # ===================== Dependency-Track (bundled) =====================
   dependencytrack:
     image: dependencytrack/bundled:latest
     container_name: dependencytrack
     restart: always
-    environment:
-      TZ: "UTC"
-    volumes:
-      - /home/madrid/iamantis/dependencytrack/data:/data
     networks:
       iamantis_net:
         ipv4_address: 10.9.0.20
-    mem_limit: 3g
-    # Acceso por VPN: http://10.9.0.20:8080
+    ports:
+      - "10.8.0.1:18020:8080"
+    volumes:
+      - /home/madrid/iamantis/dependencytrack/data:/data
 
-  # ===================== SonarQube CE + Postgres =====================
+  # ===================== SonarQube + PostgreSQL =====================
   postgres_sonar:
-    image: postgres:15
+    image: postgres:15-alpine
     container_name: postgres_sonar
-    restart: always
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: sonar
-      POSTGRES_PASSWORD: sonarpass
       POSTGRES_DB: sonar
+      POSTGRES_USER: iamantis
+      POSTGRES_PASSWORD: 14m4nt15
     volumes:
       - /home/madrid/iamantis/sonarqube/postgres:/var/lib/postgresql/data
     networks:
       iamantis_net:
         ipv4_address: 10.9.0.31
-    mem_limit: 1.5g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sonar -h 127.0.0.1 -d sonar || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   sonarqube:
-    image: sonarqube:community
+    image: sonarqube:lts-community
     container_name: sonarqube
-    restart: always
+    restart: unless-stopped
     depends_on:
       - postgres_sonar
     environment:
       SONAR_JDBC_URL: jdbc:postgresql://postgres_sonar:5432/sonar
-      SONAR_JDBC_USERNAME: sonar
-      SONAR_JDBC_PASSWORD: sonarpass
+      SONAR_JDBC_USERNAME: iamantis
+      SONAR_JDBC_PASSWORD: 14m4nt15
     volumes:
       - /home/madrid/iamantis/sonarqube/data:/opt/sonarqube/data
+      - /home/madrid/iamantis/sonarqube/extensions:/opt/sonarqube/extensions
       - /home/madrid/iamantis/sonarqube/logs:/opt/sonarqube/logs
     networks:
       iamantis_net:
         ipv4_address: 10.9.0.30
-    mem_limit: 3g
-    # Acceso por VPN: http://10.9.0.30:9000
+    ports:
+      - "10.8.0.1:19000:9000"
 
-  # ===================== OWASP ZAP (daemon/API) =====================
+  # ===================== OWASP ZAP (daemon API) =====================
   zap:
-    image: zaproxy/zap-stable
+    image: ghcr.io/zaproxy/zaproxy:stable
     container_name: zap
     restart: always
     command: >
-      bash -lc "zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.disablekey=true"
-    volumes:
-      - /home/madrid/iamantis/zap/reports:/zap/reports
+      zap.sh -daemon
+      -host 0.0.0.0 -port 8080
+      -config api.disablekey=true
+      -config api.addrs.addr.name=0.0.0.0
+      -config api.addrs.addr.regex=true
     networks:
       iamantis_net:
         ipv4_address: 10.9.0.40
-    mem_limit: 3g
-    # Acceso por VPN (API): http://10.9.0.40:8080
+    ports:
+      - "10.8.0.1:18081:8080"
+    # Nota: este modo expone la API/proxy. Para una “web UI” completa usar zap-webswing (deprecated) u otra opción.
 
-  # ===================== JMeter (runner) =====================
-  jmeter:
-    image: alpine/jmeter:5.6.3
-    container_name: jmeter
-    working_dir: /tests
-    volumes:
-      - /home/madrid/iamantis/jmeter/tests:/tests
-      - /home/madrid/iamantis/jmeter/results:/results
-    networks:
-      iamantis_net:
-        ipv4_address: 10.9.0.50
-    mem_limit: 2g
-    # Ejecuta planes bajo demanda:
-    # docker compose run --rm jmeter -n -t /tests/plan.jmx -l /results/out.jtl
-
-  # ===================== Trivy server =====================
-  trivy:
-    image: aquasec/trivy:latest
-    container_name: trivy
-    command: server --listen 0.0.0.0:4954
-    restart: always
-    volumes:
-      - /home/madrid/iamantis/trivy/cache:/root/.cache
-    networks:
-      iamantis_net:
-        ipv4_address: 10.9.0.60
-    mem_limit: 3g
-    # Acceso por VPN: http://10.9.0.60:4954
-
-  # ===================== Gitleaks (secret scanning) =====================
+  # ===================== CLI tools (no exponen puertos) =====================
   gitleaks:
     image: zricethezav/gitleaks:latest
     container_name: gitleaks
-    tty: true
-    stdin_open: true
-    command: sh -c "sleep infinity"
+    command: ["sleep", "infinity"]
+    networks:
+      iamantis_net:
+        ipv4_address: 10.9.0.50
     volumes:
-      - /home/madrid/iamantis/gitleaks/repos:/repos
-      - /home/madrid/iamantis/gitleaks/reports:/reports
+      - /home/madrid/iamantis/gitleaks:/work
+
+  trivy:
+    image: aquasec/trivy:latest
+    container_name: trivy
+    command: ["sleep", "infinity"]
+    networks:
+      iamantis_net:
+        ipv4_address: 10.9.0.60
+    volumes:
+      - /home/madrid/iamantis/trivy:/work
+      - /home/madrid/iamantis/trivy-cache:/root/.cache
+
+  jmeter:
+    image: justb4/jmeter:5.5
+    container_name: jmeter
+    command: ["sleep", "infinity"]
     networks:
       iamantis_net:
         ipv4_address: 10.9.0.70
-    # (ligero; añade mem_limit si quieres)
-
-  # ===================== NGINX (web público) =====================
-  nginx:
-    image: nginx:stable-alpine
-    container_name: nginx
-    restart: always
-    # ÚNICO servicio público — expone 80/443
-    ports:
-      - "80:80"
-      - "443:443"
     volumes:
-      - /home/madrid/iamantis/web:/usr/share/nginx/html:ro
-      - /home/madrid/iamantis/web/certbot:/var/www/certbot:ro
-      - /home/madrid/iamantis/nginx/conf.d:/etc/nginx/conf.d:ro
-      - /home/madrid/iamantis/certbot/etc:/etc/letsencrypt:ro
-    networks:
-      iamantis_net:
-        ipv4_address: 10.9.0.80
+      - /home/madrid/iamantis/jmeter:/test
 
-  # ===================== Certbot (renovación automática) =====================
-  certbot:
-    image: certbot/certbot:latest
-    container_name: certbot
-    restart: always
-    command: >
-      sh -c 'while :; do
-      certbot renew --webroot -w /var/www/certbot --quiet || true;
-      sleep 12h;
-      done'
-    volumes:
-      - /home/madrid/iamantis/web/certbot:/var/www/certbot
-      - /home/madrid/iamantis/certbot/etc:/etc/letsencrypt
-      - /home/madrid/iamantis/certbot/lib:/var/lib/letsencrypt
-    networks:
-      iamantis_net:
-        ipv4_address: 10.9.0.81
-
-  # ===================== (Opcional) Reloader de Nginx cada 12h =====================
-  # Envía HUP al contenedor 'nginx' para que tome nuevos certificados tras la renovación.
-  # Si no lo quieres, comenta este servicio y recarga nginx manualmente cuando renueve.
-  nginx_hup:
-    image: alpine:3.20
-    container_name: nginx_hup
-    restart: always
-    command: >
-      sh -c "apk add --no-cache curl >/dev/null 2>&1;
-      while :; do
-        sleep 12h;
-        curl --unix-socket /var/run/docker.sock -X POST http:/v1.41/containers/nginx/kill?signal=HUP || true;
-      done"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      iamantis_net:
-        ipv4_address: 10.9.0.82
 
 ## Hacer pull para lanzar los docker
 
@@ -321,3 +320,16 @@ BR="br-7adb8aab6639"
 # Permitir paso tun0 -> bridge y bridge -> tun0
 sudo iptables -C FORWARD -i tun0 -o $BR -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD -i tun0 -o $BR -j ACCEPT
 sudo iptables -C FORWARD -i $BR -o tun0 -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD -i $BR -o tun0 -j ACCEPT
+
+## Pruebas de conectividad
+## subir solo 1 servicio de defectdojo
+sudo docker compose up -d defectdojo_nginx
+## verificar que este corriendo
+sudo docker ps --format "table {{.Names}}\t{{.Ports}}"
+## confirmar que el puerto esta escuchando
+sudo ss -tulpn | grep 18080
+## probar servicio en el vps ubuntu 
+curl -I http://10.8.0.1:18080
+## probar desde powershell en windows
+curl.exe -I http://10.8.0.1:18080
+
