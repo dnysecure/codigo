@@ -332,4 +332,22 @@ sudo ss -tulpn | grep 18080
 curl -I http://10.8.0.1:18080
 ## probar desde powershell en windows
 curl.exe -I http://10.8.0.1:18080
+## revisar que esten en la misma red
+sudo docker inspect dependencytrack | grep '"NetworkMode"'
+sudo docker inspect postgres_ddj | grep '"NetworkMode"'
+## revisar IP de cada uno
+sudo docker inspect -f '{{.NetworkSettings.Networks.iamantis_net.IPAddress}}' dependencytrack
+sudo docker inspect -f '{{.NetworkSettings.Networks.iamantis_net.IPAddress}}' postgres_ddj
+## confirmar que tiene variables correctas
+sudo docker inspect dependencytrack | grep ALPINE_DATABASE
+## iniciar solo el contenedor que se requiere del compose
+sudo docker compose up -d dependencytrack
+## probar conexion manual con el contenedor
+sudo docker exec -it dependencytrack sh
+apk add --no-cache postgresql-client
+psql -h postgres_ddj -U iamantis -d dependencytrack -c '\conninfo'
+## monitoreo de procesamiento y memoria de los contenedores
+sudo docker stats dependencytrack
+## revisar salud del contenedor
+sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 

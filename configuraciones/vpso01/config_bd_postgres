@@ -21,3 +21,10 @@ sudo docker exec -it postgres_ddj psql -U iamantis -d dependencytrack -c '\conni
 sudo docker ps --filter name=postgres_ddj
 ## monitoreo al contenedor - revisamos errores
 sudo docker logs -f dependencytrack | grep -E "Ready|Started|error"
+## comprobar si acepta conexiones
+sudo docker exec -it postgres_ddj psql -U iamantis -d dependencytrack -c '\conninfo'
+## comprobar si tiene bases de datos creadas
+sudo docker exec -it postgres_ddj psql -U iamantis -d dependencytrack -c '\dt'
+## entrar a contenedor como root
+docker exec -u root -t -i container_id /bin/bash
+
